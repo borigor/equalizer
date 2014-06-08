@@ -1,30 +1,44 @@
 import javax.sound.sampled.*;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 /**
  * Created by igor on 28.05.2014.
  */
-public class WaveFile {
+public class WaveFile extends Thread {
 
-    private AudioInputStream stream = null;
-    private AudioFormat format = null;
+    static final int BUFFER_SIZE = 2048;
+
+    private AudioInputStream audioInputStream = null;
+    private AudioFormat audioFormat = null;
     private FloatControl volume = null;
-    private Clip clip = null;
+    private float floatVolumeValue;
+
+    private int sampleSize;
+    private int sampleCountInBuffer;
+    private double inverseTimesOfBuffer;
+
     private boolean released;
     private boolean playing;
-    private byte[] data = null;
 
-    public WaveFile(File file) {
+    private eqGUI gui;
+
+    public WaveFile(File file, eqGUI gui) {
+
+        this.gui = gui;
 
         try {
-            stream = AudioSystem.getAudioInputStream(file);
-            format = stream.getFormat();
-            clip = AudioSystem.getClip();
-            clip.open(stream);
+            audioInputStream = AudioSystem.getAudioInputStream(file);
+            audioFormat = audioInputStream.getFormat();
+
+            sampleSize = audioFormat.getSampleSizeInBits()/8;
+            sampleCountInBuffer = BUFFER_SIZE/sampleSize;
+            inverseTimesOfBuffer = audioFormat.getSampleRate()/sampleCountInBuffer;
 
             released = true;
-        } catch (UnsupportedAudioFileException | IOException | LineUnavailableException e) {
+        } catch (UnsupportedAudioFileException | IOException e) {
             e.printStackTrace();
             released = false;
         }
@@ -38,36 +52,100 @@ public class WaveFile {
         return playing;
     }
 
-    public void play() {
+    public void bufferToSamples(byte[] buffer, short[] samplesBuffer) {
 
-        if (isReleased()) {
+        byte[] sampleBytes = new byte[sampleSize];
+        int j = 0;
 
-            if (isPlaying()) {
-                clip.stop();
-                clip.setFramePosition(0);
-                clip.start();
-                playing = true;
+        for (int i = 0; i < sampleCountInBuffer; i++) {
+            for (int k = 0; k < sampleSize; k++) {
+                sampleBytes[k] = buffer[j];
+                j++;
             }
-            else {
-                clip.setFramePosition(0);
-                clip.start();
-                playing = true;
+            samplesBuffer[i] = ByteBuffer.wrap(sampleBytes).order(ByteOrder.LITTLE_ENDIAN).getShort();
+        }
+    }
+
+    public void sampleToBuffer(byte[] buffer, short[] samplesBuffer) {
+        int j = 0;
+        for (int i = 0; i < sampleCountInBuffer; i++) {
+            byte[] sampleBytes = ByteBuffer.allocate(sampleSize).order(ByteOrder.LITTLE_ENDIAN).putShort(samplesBuffer[i]).array();
+
+            for (int k = 0; k < sampleSize; k++) {
+                buffer[j] = sampleBytes[k];
+                j++;
             }
         }
     }
 
-    public void stop() {
+    public void run() {
 
-        if (isPlaying()) {
-            clip.stop();
-            playing = false;
+        try {
+            DataLine.Info info = new DataLine.Info(SourceDataLine.class, audioFormat);
+            SourceDataLine audioLine = (SourceDataLine) AudioSystem.getLine(info);
+            audioLine.open(audioFormat);
+            volume = (FloatControl)audioLine.getControl(FloatControl.Type.MASTER_GAIN);
+            audioLine.start();
+
+            System.out.println("Playback started.");
+
+            byte[] bytesBuffer = new byte[BUFFER_SIZE];
+            int bytesRead = 0;
+            int[] bandValueArray;
+            short[] sampleBuffer = new short[sampleCountInBuffer];
+
+            while (bytesRead != -1) {
+
+                floatVolumeValue = (float) (gui.getVolumeValue()/10.0);
+                floatVolumeValue += 0.3;
+                setVolume(floatVolumeValue);
+
+                bytesRead = audioInputStream.read(bytesBuffer, 0, bytesBuffer.length);
+                if (bytesRead >= 0) {
+                    bufferToSamples(bytesBuffer, sampleBuffer);
+
+                    Complex[] x = ComplexConverter.shortArrayToComplex(sampleBuffer);
+                    Complex[] spectrumArray = FFT.fft(x);
+
+                    bandValueArray = gui.getBandValues();
+
+                    Audio.equalizer(spectrumArray, inverseTimesOfBuffer, bandValueArray);
+
+                    x = FFT.ifft(spectrumArray);
+                    sampleBuffer = ComplexConverter.ComplexArrayToShort(x);
+
+                    if (gui.getDelayFlag()) {
+                        Audio.delay(sampleBuffer);
+                    }
+
+                    if (gui.getVibratoFlag()) {
+                        Audio.vibrato(sampleBuffer);
+                    }
+
+                    sampleToBuffer(bytesBuffer, sampleBuffer);
+                    audioLine.write(bytesBuffer, 0, bytesRead);
+                }
+            }
+
+            audioLine.drain();
+            audioLine.close();
+            audioInputStream.close();
+
+            System.out.println("Playback completed.");
+
+        } catch (LineUnavailableException ex) {
+            System.out.println("Audio line for playing back is unavailable.");
+            ex.printStackTrace();
+        } catch (IOException ex) {
+            System.out.println("Error playing the audio file.");
+            ex.printStackTrace();
         }
     }
 
     public void setVolume(float vol) {
-        if (vol < 0)
+        if (vol < 0.0)
             vol = 0;
-        else if (vol > 1)
+        else if (vol > 1.0)
             vol = 1;
 
         float min = volume.getMinimum();
@@ -83,14 +161,4 @@ public class WaveFile {
 
         return (vol - min)/(max - min);
     }
-
-    public void join() {
-        if (!released) return;
-        synchronized(clip) {
-            try {
-                while (playing) clip.wait();
-            } catch (InterruptedException exc) {}
-        }
-    }
-
 }
