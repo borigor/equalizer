@@ -113,6 +113,10 @@ public class eqGUI extends Thread{
         volumeLabel = new JLabel("volume");
         volumeControl = new JSlider(MIN_VALUE_VOL, MAX_VALUE_VOL, INIT_VALUE_VOL);
 
+        volumeControl.setMajorTickSpacing(1);
+        volumeControl.setMinorTickSpacing(1);
+        volumeControl.setPaintTicks(true);
+
         band1 = new JSlider(JSlider.VERTICAL, MIN_VALUE_EQ, MAX_VALUE_EQ, INIT_VALUE_EQ);
         band2 = new JSlider(JSlider.VERTICAL, MIN_VALUE_EQ, MAX_VALUE_EQ, INIT_VALUE_EQ);
         band3 = new JSlider(JSlider.VERTICAL, MIN_VALUE_EQ, MAX_VALUE_EQ, INIT_VALUE_EQ);
@@ -121,6 +125,38 @@ public class eqGUI extends Thread{
         band6 = new JSlider(JSlider.VERTICAL, MIN_VALUE_EQ, MAX_VALUE_EQ, INIT_VALUE_EQ);
         band7 = new JSlider(JSlider.VERTICAL, MIN_VALUE_EQ, MAX_VALUE_EQ, INIT_VALUE_EQ);
         band8 = new JSlider(JSlider.VERTICAL, MIN_VALUE_EQ, MAX_VALUE_EQ, INIT_VALUE_EQ);
+
+        band1.setMajorTickSpacing(2);
+        band1.setMinorTickSpacing(2);
+        band1.setPaintTicks(true);
+
+        band2.setMajorTickSpacing(2);
+        band2.setMinorTickSpacing(2);
+        band2.setPaintTicks(true);
+
+        band3.setMajorTickSpacing(2);
+        band3.setMinorTickSpacing(2);
+        band3.setPaintTicks(true);
+
+        band4.setMajorTickSpacing(2);
+        band4.setMinorTickSpacing(2);
+        band4.setPaintTicks(true);
+
+        band5.setMajorTickSpacing(2);
+        band5.setMinorTickSpacing(2);
+        band5.setPaintTicks(true);
+
+        band6.setMajorTickSpacing(2);
+        band6.setMinorTickSpacing(2);
+        band6.setPaintTicks(true);
+
+        band7.setMajorTickSpacing(2);
+        band7.setMinorTickSpacing(2);
+        band7.setPaintTicks(true);
+
+        band8.setMajorTickSpacing(2);
+        band8.setMinorTickSpacing(2);
+        band8.setPaintTicks(true);
 
         label1 = new JLabel("band1");
         label2 = new JLabel("band2");
@@ -148,21 +184,30 @@ public class eqGUI extends Thread{
         playButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                waveFile.start();
+                if (!waveFile.isPlaying()) {
+                    waveFile.start();
+                } else {
+                    waveFile.resume();
+                }
             }
         });
 
         stopButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-
+                if (waveFile.isPlaying()) {
+                    waveFile.stop();
+                    waveFile = new WaveFile(file, gui);
+                }
             }
         });
 
         pauseButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-
+                if (waveFile.isPlaying()) {
+                    waveFile.suspend();
+                }
             }
         });
 

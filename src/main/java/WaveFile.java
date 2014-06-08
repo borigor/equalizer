@@ -86,6 +86,7 @@ public class WaveFile extends Thread {
             audioLine.open(audioFormat);
             volume = (FloatControl)audioLine.getControl(FloatControl.Type.MASTER_GAIN);
             audioLine.start();
+            playing = true;
 
             System.out.println("Playback started.");
 
